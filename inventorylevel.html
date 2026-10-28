@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory Checker | Ghost Production</title>
+
+  <!-- Bootstrap 5.3.8 LTR (Default) -->
+  <link id="bootstrap-css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+
+  <!-- Vazirmatn Font for Arabic -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css">
+
+  <style>
+    :root {
+      --bs-body-font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+    }
+    body {
+      background-color: #0f1419;
+      color: #e6edf3;
+      padding: 20px 0;
+      line-height: 1.8;
+    }
+    .card {
+      background-color: #1a2129;
+      border: 1px solid #2a3441;
+      border-radius: 10px;
+    }
+    .card-header {
+      background-color: #161b22;
+      border-bottom: 1px solid #2a3441;
+    }
+    #drop-zone {
+      border: 2px dashed #2a3441;
+      border-radius: 10px;
+      padding: 30px;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.15s;
+      color: #8b98a5;
+    }
+    #drop-zone:hover, #drop-zone.hover {
+      border-color: #58a6ff;
+      color: #e6edf3;
+      background-color: #1f2933;
+    }
+    .table {
+      --bs-table-bg: transparent;
+      --bs-table-color: #e6edf3;
+      --bs-table-border-color: #2a3441;
+      font-size: 14px;
+    }
+    .table thead th {
+      background-color: #161b22;
+      color: #8b98a5;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #2a3441;
+    }
+    .table tbody tr:hover {
+      background-color: #1c232b;
+    }
+    .qty-pos { color: #3fb950; font-weight: 600; }
+    .qty-zero { color: #8b98a5; }
+    .qty-neg { color: #f85149; font-weight: 600; }
+    .instock-row td:first-child { border-left: 3px solid #3fb950; }
+    [dir="rtl"] .instock-row td:first-child { border-left: none; border-right: 3px solid #3fb950; }
+    .footer {
+      font-size: 13px;
+      color: #8b98a5;
+      text-align: center;
+      margin-top: 20px;
+    }
+    .footer a { color: #58a6ff; text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+    .table-responsive { max-height: 65vh; overflow: auto; }
+    #lang-toggle { font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h4 mb-1" data-en="Inventory Keyword Checker" data-ar="مدقق كلمات المخزون">Inventory Keyword Checker</h1>
+      <p class="text-secondary small mb-0" data-en="Upload CSV, type keyword, get exact matches." data-ar="ارفع ملف CSV، اكتب الكلمة، احصل على التطابقات الدقيقة.">Upload CSV, type keyword, get exact matches.</p>
+    </div>
+    <button id="lang-toggle" class="btn btn-outline-info btn-sm" onclick="toggleLanguage()">
+      <span data-en="العربية" data-ar="English">العربية</span>
+    </button>
+  </div>
+
+  <!-- Upload Zone -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div id="drop-zone">
+        <strong data-en="Click to choose" data-ar="انقر للاختيار">Click to choose</strong>
+        <span data-en=" or drag & drop your CSV file here" data-ar=" أو اسحب وأفلت ملف CSV هنا"> or drag & drop your CSV file here</span>
+        <input type="file" id="file-input" accept=".csv" hidden>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search & Controls -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2 align-items-center">
+        <div class="col-md-6">
+          <input type="text" id="search-input" class="form-control bg-dark text-light border-secondary" placeholder="Search keyword(s)..." disabled data-en-placeholder="Search keyword(s)..." data-ar-placeholder="ابحث عن كلمة (كلمات)..." >
+        </div>
+        <div class="col-auto">
+          <button id="search-btn" class="btn btn-success" disabled data-en="Search" data-ar="بحث">Search</button>
+        </div>
+        <div class="col-auto">
+          <button id="clear-btn" class="btn btn-outline-secondary" disabled data-en="Clear" data-ar="مسح">Clear</button>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="instock-check">
+            <label class="form-check-label small text-secondary" for="instock-check" data-en="In-stock only" data-ar="المتوفر فقط">In-stock only</label>
+          </div>
+        </div>
+      </div>
+      <div id="meta-info" class="small text-secondary mt-2" data-en="No file loaded." data-ar="لم يتم تحميل ملف.">No file loaded.</div>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="card table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th data-en="Name" data-ar="الاسم">Name</th>
+          <th data-en="SKU" data-ar="رمز SKU">SKU</th>
+          <th data-en="Qty" data-ar="الكمية">Qty</th>
+          <th data-en="Cost/Unit" data-ar="التكلفة/الوحدة">Cost/Unit</th>
+          <th data-en="Total Cost" data-ar="التكلفة الإجمالية">Total Cost</th>
+        </tr>
+      </thead>
+      <tbody id="results-body">
+        <tr><td colspan="5" class="text-center text-secondary py-4" data-en="Results will appear here." data-ar="ستظهر النتائج هنا.">Results will appear here.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span data-en="Developed by" data-ar="تم التطوير بواسطة">Developed by</span>
+    <a href="https://github.com/GHOSTKMR" target="_blank" rel="noopener">Ghost Production</a>
+  </div>
+
+</div>
+
+<script>
+// ========== STATE ==========
+let allRows = [];
+let currentLang = 'en';
+
+// ========== DOM REFS ==========
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const searchInput = document.getElementById('search-input');
+const searchBtn = document.getElementById('search-btn');
+const clearBtn = document.getElementById('clear-btn');
+const instockCheck = document.getElementById('instock-check');
+const resultsBody = document.getElementById('results-body');
+const metaInfo = document.getElementById('meta-info');
+const bootstrapCss = document.getElementById('bootstrap-css');
+
+// ========== LANGUAGE TOGGLE ==========
+function toggleLanguage() {
+  const html = document.documentElement;
+  const isRtl = html.getAttribute('dir') === 'rtl';
+
+  if (isRtl) {
+    // Switch to English (LTR)
+    html.setAttribute('dir', 'ltr');
+    html.setAttribute('lang', 'en');
+    bootstrapCss.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css';
+    currentLang = 'en';
+  } else {
+    // Switch to Arabic (RTL)
+    html.setAttribute('dir', 'rtl');
+    html.setAttribute('lang', 'ar');
+    bootstrapCss.href = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.rtl.min.css';
+    currentLang = 'ar';
+  }
+
+  // Update all elements with data-en / data-ar
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.textContent = el.getAttribute(`data-${currentLang}`);
+  });
+  // Update placeholders
+  document.querySelectorAll('[data-en-placeholder]').forEach(el => {
+    el.placeholder = el.getAttribute(`data-${currentLang}-placeholder`);
+  });
+  // Update button label (the toggle button itself)
+  document.querySelector('#lang-toggle span').textContent = currentLang === 'en' ? 'العربية' : 'English';
+
+  // Re-render results if any
+  if (searchInput.value.trim() && allRows.length) {
+    performSearch();
+  } else {
+    // Update meta info default
+    if (!allRows.length) {
+      metaInfo.textContent = currentLang === 'en' ? 'No file loaded.' : 'لم يتم تحميل ملف.';
+    }
+  }
+}
+
+// ========== CSV PARSER ==========
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const rows = [];
+  let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], n = text[i + 1];
+    if (inQ) {
+      if (c === '"' && n === '"') { field += '"'; i++; }
+      else if (c === '"') { inQ = false; }
+      else field += c;
+    } else {
+      if (c === '"') { inQ = true; }
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* ignore */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ''));
+}
+
+// ========== FILE HANDLING ==========
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('hover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('hover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('hover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => loadCSVText(e.target.result, file.name);
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadCSVText(text, filename) {
+  const raw = parseCSV(text);
+  if (!raw.length) { alert(currentLang === 'en' ? 'Empty file.' : 'ملف فارغ.'); return; }
+
+  const header = raw[0].map(h => h.trim().toLowerCase());
+  const idxName = header.indexOf('name');
+  const idxSku = header.indexOf('sku');
+  const idxQty = header.indexOf('quantity');
+  const idxCost = header.indexOf('cost per unit');
+  const idxTotal = header.indexOf('total cost');
+
+  if (idxName < 0) { alert(currentLang === 'en' ? 'Could not find "Name" column.' : 'لم يتم العثور على عمود "Name".'); return; }
+
+  allRows = raw.slice(1).map(r => ({
+    name: (r[idxName] ?? '').trim(),
+    sku: (r[idxSku] ?? '').trim(),
+    qty: (r[idxQty] ?? '').trim(),
+    cost: (r[idxCost] ?? '').trim(),
+    total: (r[idxTotal] ?? '').trim(),
+  })).filter(r => r.name !== '');
+
+  searchInput.disabled = false;
+  searchBtn.disabled = false;
+  clearBtn.disabled = false;
+
+  const msg = currentLang === 'en'
+    ? `Loaded <b>${filename}</b> — <b>${allRows.length}</b> rows. Type a keyword.`
+    : `تم تحميل <b>${filename}</b> — <b>${allRows.length}</b> صف. اكتب كلمة بحث.`;
+  metaInfo.innerHTML = msg;
+
+  renderRows([]);
+}
+
+// ========== SEARCH ==========
+searchBtn.addEventListener('click', performSearch);
+searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') performSearch(); });
+instockCheck.addEventListener('change', () => { if (searchInput.value.trim()) performSearch(); });
+
+function performSearch() {
+  const q = searchInput.value.trim().toLowerCase();
+  const inStockOnly = instockCheck.checked;
+  if (!q) { renderRows([]); return; }
+
+  const terms = q.split(/\s+/).filter(Boolean);
+  const hits = allRows.filter(r => {
+    const hay = (r.name + ' ' + r.sku).toLowerCase();
+    if (!terms.every(t => hay.includes(t))) return false;
+    if (inStockOnly && parseFloat(r.qty || '0') <= 0) return false;
+    return true;
+  });
+
+  renderRows(hits, q, inStockOnly);
+}
+
+// ========== RENDER ==========
+function renderRows(rows, q, inStockOnly) {
+  if (!rows.length) {
+    const msg = q
+      ? (currentLang === 'en' ? 'No matches.' : 'لا توجد نتائج.')
+      : (currentLang === 'en' ? 'Results will appear here.' : 'ستظهر النتائج هنا.');
+    resultsBody.innerHTML = `<tr><td colspan="5" class="text-center text-secondary py-4">${msg}</td></tr>`;
+    if (q) {
+      metaInfo.innerHTML = currentLang === 'en'
+        ? `No matches for "<b>${escapeHtml(q)}</b>"${inStockOnly ? ' (in-stock only)' : ''}.`
+        : `لا توجد نتائج لـ "<b>${escapeHtml(q)}</b>"${inStockOnly ? ' (المتوفر فقط)' : ''}.`;
+    }
+    return;
+  }
+
+  resultsBody.innerHTML = rows.map(r => {
+    const qtyNum = parseFloat(r.qty || '0');
+    const qtyClass = qtyNum > 0 ? 'qty-pos' : (qtyNum < 0 ? 'qty-neg' : 'qty-zero');
+    const trClass = qtyNum > 0 ? 'instock-row' : '';
+    return `<tr class="${trClass}">
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.sku)}</td>
+      <td class="text-end ${qtyClass}">${escapeHtml(r.qty)}</td>
+      <td class="text-end">${escapeHtml(r.cost)}</td>
+      <td class="text-end">${escapeHtml(r.total)}</td>
+    </tr>`;
+  }).join('');
+
+  const withStock = rows.filter(r => parseFloat(r.qty || '0') > 0).length;
+  metaInfo.innerHTML = currentLang === 'en'
+    ? `<b>${rows.length}</b> match${rows.length === 1 ? '' : 'es'} for "<b>${escapeHtml(q)}</b>" — <b>${withStock}</b> with stock > 0${inStockOnly ? ' (filter on)' : ''}.`
+    : `<b>${rows.length}</b> نتيجة لـ "<b>${escapeHtml(q)}</b>" — <b>${withStock}</b> متوفر > 0${inStockOnly ? ' (الفلتر مفعل)' : ''}.`;
+}
+
+// ========== UTILS ==========
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// ========== CLEAR ==========
+clearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  instockCheck.checked = false;
+  renderRows([]);
+  metaInfo.innerHTML = currentLang === 'en'
+    ? `Loaded <b>${allRows.length}</b> rows. Type a keyword.`
+    : `تم تحميل <b>${allRows.length}</b> صف. اكتب كلمة بحث.`;
+});
+
+// ========== INIT ==========
+// Ensure initial text matches English
+metaInfo.textContent = 'No file loaded.';
+</script>
+
+</body>
+</html>
